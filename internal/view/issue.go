@@ -403,11 +403,14 @@ func (i Issue) comments() []issueComment {
 			}
 			return c.Author.Name
 		}
-		meta := fmt.Sprintf(
-			"\n %s • %s",
-			coloredOut(authorName(), color.FgWhite, color.Bold),
-			coloredOut(cmdutil.FormatDateTimeHuman(c.Created, jira.RFC3339), color.FgWhite, color.Bold),
+		creationDate := cmdutil.FormatDateTimeHuman(c.Created, jira.RFC3339)
+		metaMandatory := fmt.Sprintf(
+			"✍  %s • ⌛ %s • 🔑️ %s",
+			authorName(),
+			creationDate,
+			c.ID,
 		)
+		meta := fmt.Sprintf("\n %s", coloredOut(metaMandatory, color.FgWhite, color.Bold))
 		if idx == total-1 {
 			meta += fmt.Sprintf(" • %s", coloredOut("Latest comment", color.FgCyan, color.Bold))
 		}

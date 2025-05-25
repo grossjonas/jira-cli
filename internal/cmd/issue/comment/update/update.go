@@ -11,7 +11,9 @@ import (
 	"github.com/ankitpokhrel/jira-cli/internal/cmdcommon"
 	"github.com/ankitpokhrel/jira-cli/internal/cmdutil"
 	"github.com/ankitpokhrel/jira-cli/internal/query"
+	"github.com/ankitpokhrel/jira-cli/pkg/adf"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
+	"github.com/ankitpokhrel/jira-cli/pkg/md"
 	"github.com/ankitpokhrel/jira-cli/pkg/surveyext"
 )
 
@@ -65,30 +67,25 @@ func NewCmdCommentUpdate() *cobra.Command {
 func update(cmd *cobra.Command, args []string) {
 	params := parseArgsAndFlags(args, cmd.Flags())
 	client := api.DefaultClient(params.debug)
-	ac := updateCmd{
+	uc := updateCmd{
 		client:    client,
 		linkTypes: nil,
 		params:    params,
 	}
 
-	if ac.isNonInteractive() {
-		ac.params.noInput = true
+	if uc.isNonInteractive() {
+		uc.params.noInput = true
 
-		if ac.isMandatoryParamsMissing() {
+		if uc.isMandatoryParamsMissing() {
 			cmdutil.Failed("`ISSUE-KEY` & `COMMENT-ID` are mandatory when using a non-interactive mode")
 		}
 	}
 
-	cmdutil.ExitIfError(ac.setIssueKey())
+	cmdutil.ExitIfError(uc.setIssueKey())
 
-	qs := ac.getQuestions()
-	if len(qs) > 0 {
-		ans := struct{ Body string }{}
-		err := survey.Ask(qs, &ans)
-		cmdutil.ExitIfError(err)
+	cmdutil.ExitIfError(uc.setCommentId())
 
-		params.body = ans.Body
-	}
+	cmdutil.ExitIfError(uc.setBody())
 
 	if !params.noInput {
 		answer := struct{ Action string }{}
@@ -104,17 +101,17 @@ func update(cmd *cobra.Command, args []string) {
 		s := cmdutil.Info("Adding comment")
 		defer s.Stop()
 
-		return client.UpdateIssueComment(ac.params.issueKey, ac.params.commentId, ac.params.body, ac.params.internal)
+		return client.UpdateIssueComment(uc.params.issueKey, uc.params.commentId, uc.params.body, uc.params.internal)
 	}()
 	cmdutil.ExitIfError(err)
 
 	server := viper.GetString("server")
 
-	cmdutil.Success("Comment added to issue %q", ac.params.issueKey)
-	fmt.Printf("%s\n", cmdutil.GenerateServerBrowseURL(server, ac.params.issueKey))
+	cmdutil.Success("Comment %q of issue %q updated", uc.params.commentId, uc.params.issueKey)
+	fmt.Printf("%s?focusedCommentId=%s\n", cmdutil.GenerateServerBrowseURL(server, uc.params.issueKey), uc.params.commentId)
 
 	if web, _ := cmd.Flags().GetBool("web"); web {
-		err := cmdutil.Navigate(server, ac.params.issueKey)
+		err := cmdutil.Navigate(server, uc.params.issueKey)
 		cmdutil.ExitIfError(err)
 	}
 }
@@ -134,7 +131,6 @@ func parseArgsAndFlags(args []string, flags query.FlagParser) *addParams {
 
 	nargs := len(args)
 	if nargs >= 1 {
-		return nil
 		issueKey = cmdutil.GetJiraIssueKey(viper.GetString("project.key"), args[0])
 	}
 	if nargs >= 2 {
@@ -193,7 +189,31 @@ func (uc *updateCmd) setIssueKey() error {
 	return nil
 }
 
-func (uc *updateCmd) getQuestions() []*survey.Question {
+func (uc *updateCmd) setCommentId() error {
+	if uc.params.commentId != "" {
+		return nil
+	}
+
+	var ans string
+
+	qs := &survey.Question{
+		Name:     "commendId",
+		Prompt:   &survey.Input{Message: "Comment Id"},
+		Validate: survey.Required,
+	}
+	if err := survey.Ask([]*survey.Question{qs}, &ans); err != nil {
+		return err
+	}
+	uc.params.commentId = ans
+
+	return nil
+}
+
+func (uc *updateCmd) setBody() error {
+	if uc.params.body != "" {
+		return nil
+	}
+
 	var (
 		qs          []*survey.Question
 		defaultBody string
@@ -207,9 +227,24 @@ func (uc *updateCmd) getQuestions() []*survey.Question {
 		defaultBody = string(b)
 	}
 
-	if uc.params.noInput && uc.params.body == "" {
+	if uc.params.noInput {
 		uc.params.body = defaultBody
-		return qs
+		return nil
+	}
+
+	if uc.params.template == "" {
+		originalComment, error := uc.client.GetIssueComment(uc.params.issueKey, uc.params.commentId)
+		cmdutil.ExitIfError(error)
+
+		// from internal/view/issue.go:381 how to DRY?
+		var body string
+		if adfNode, ok := originalComment.Body.(*adf.ADF); ok {
+			body = adf.NewTranslator(adfNode, adf.NewMarkdownTranslator()).Translate()
+		} else {
+			body = originalComment.Body.(string)
+			body = md.FromJiraMD(body)
+		}
+		defaultBody = body
 	}
 
 	if uc.params.body == "" {
@@ -227,7 +262,13 @@ func (uc *updateCmd) getQuestions() []*survey.Question {
 		})
 	}
 
-	return qs
+	ans := struct{ Body string }{}
+	err := survey.Ask(qs, &ans)
+	cmdutil.ExitIfError(err)
+
+	uc.params.body = ans.Body
+
+	return nil
 }
 
 func getNextAction() *survey.Question {
