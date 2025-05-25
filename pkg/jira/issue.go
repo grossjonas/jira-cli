@@ -335,6 +335,32 @@ func (c *Client) AddIssueComment(key, comment string, internal bool) error {
 	return nil
 }
 
+// UpdateIssueComment updates a comment to an issue using PUT /rest/api/2/issue/{issueIdOrKey}/comment/{id} endpoint.
+func (c *Client) UpdateIssueComment(key, id, comment string, internal bool) error {
+	body, err := json.Marshal(&issueCommentRequest{Body: md.ToJiraMD(comment), Properties: []issueCommentProperty{{Key: "sd.public.comment", Value: issueCommentPropertyValue{Internal: internal}}}})
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("/issue/%s/comment/%s", key, id)
+	res, err := c.PutV2(context.Background(), path, body, Header{
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	})
+	if err != nil {
+		return err
+	}
+	if res == nil {
+		return ErrEmptyResponse
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusCreated {
+		return formatUnexpectedResponse(res)
+	}
+	return nil
+}
+
 type issueWorklogRequest struct {
 	Started   string `json:"started,omitempty"`
 	TimeSpent string `json:"timeSpent"`
