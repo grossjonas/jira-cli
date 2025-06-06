@@ -103,13 +103,8 @@ type IssueFields struct {
 		Name string `json:"name"`
 	} `json:"versions"`
 	Comment struct {
-		Comments []struct {
-			ID      string      `json:"id"`
-			Author  User        `json:"author"`
-			Body    interface{} `json:"body"` // string in v1/v2, adf.ADF in v3
-			Created string      `json:"created"`
-		} `json:"comments"`
-		Total int `json:"total"`
+		Comments []Comment `json:"comments"`
+		Total    int       `json:"total"`
 	} `json:"comment"`
 	Subtasks   []Issue
 	IssueLinks []struct {
@@ -124,6 +119,13 @@ type IssueFields struct {
 	} `json:"issueLinks"`
 	Created string `json:"created"`
 	Updated string `json:"updated"`
+}
+
+type Comment struct {
+	ID      string      `json:"id"`
+	Author  User        `json:"author"`
+	Body    interface{} `json:"body"` // string in v1/v2, adf.ADF in v3
+	Created string      `json:"created"`
 }
 
 // Field holds field info.

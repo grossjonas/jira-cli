@@ -335,6 +335,67 @@ func (c *Client) AddIssueComment(key, comment string, internal bool) error {
 	return nil
 }
 
+// UpdateIssueComment updates a comment of an issue using PUT /issue/{issueIdOrKey}/comment/{id} endpoint.
+func (c *Client) UpdateIssueComment(key string, id string, comment string, internal bool) error {
+	body, err := json.Marshal(&issueCommentRequest{Body: md.ToJiraMD(comment), Properties: []issueCommentProperty{{Key: "sd.public.comment", Value: issueCommentPropertyValue{Internal: internal}}}})
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("/issue/%s/comment/%s", key, id)
+	res, err := c.PutV2(context.Background(), path, body, Header{
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	})
+	if err != nil {
+		return err
+	}
+	if res == nil {
+		return ErrEmptyResponse
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		return formatUnexpectedResponse(res)
+	}
+	return nil
+}
+
+// GetIssueComment gets a comment of an issue using GET /issue/{key}/comment/{id} endpoint.
+func (c *Client) GetIssueComment(key string, id string) (*Comment, error) {
+	path := fmt.Sprintf("/issue/%s/comment/%s", key, id)
+	res, err := c.GetV2(context.Background(), path, Header{
+		"Accept":       "application/json",
+		"Content-Type": "application/json",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, ErrEmptyResponse
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, formatUnexpectedResponse(res)
+	}
+
+	var b strings.Builder
+	_, err = io.Copy(&b, res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var rawOut = b.String()
+
+	var comment Comment
+	err = json.Unmarshal([]byte(rawOut), &comment)
+	if err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
 type issueWorklogRequest struct {
 	Started   string `json:"started,omitempty"`
 	TimeSpent string `json:"timeSpent"`
