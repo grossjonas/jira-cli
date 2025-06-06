@@ -25,20 +25,20 @@ const (
 $ jira issue comment update ISSUE-1 986745 "My comment"
 
 # Multi-line comment
-$ jira issue comment add ISSUE-1 986745 $'Supports\n\nNew line'
+$ jira issue comment update ISSUE-1 986745 $'Supports\n\nNew line'
 
 # Load comment body from a template file
-$ jira issue comment add ISSUE-1 986745 --template /path/to/template.tmpl
+$ jira issue comment update ISSUE-1 986745 --template /path/to/template.tmpl
 
 # Get comment body from standard input
-$ jira issue comment add ISSUE-1 986745 --template -
+$ jira issue comment update ISSUE-1 986745 --template -
 
 # Or, use pipe to read input directly from standard input
-$ echo "Comment from stdin" | jira issue comment add ISSUE-1 986745
+$ echo "Comment from stdin" | jira issue comment update ISSUE-1 986745
 
 # Positional argument takes precedence over the template flag
 # The example below will add "comment from arg" as a comment
-$ jira issue comment add ISSUE-1 986745 "comment from arg" --template /path/to/template.tmpl`
+$ jira issue comment update ISSUE-1 986745 "comment from arg" --template /path/to/template.tmpl`
 )
 
 // NewCmdCommentAdd is a comment update command.
